@@ -1,1 +1,8 @@
-hora-do-papa-circuit
+###############################
+# PlatformIO
+###############################
+hora-do-papa-esp32/.pio
+hora-do-papa-esp32/.vscode/.browse.c_cpp.db*
+hora-do-papa-esp32/.vscode/c_cpp_properties.json
+hora-do-papa-esp32/.vscode/launch.json
+hora-do-papa-esp32/.vscode/ipch
