@@ -10,7 +10,7 @@
  * Global utils
  * ===================================*/
 
-/* Create step motor */
+/* Create stepper motor */
 #define MOTOR_STEPS 200
 #define DIR 4
 #define STP 18
@@ -36,7 +36,7 @@ typedef struct {
   repeat_t repeat;
 } activation_t;
 
-/* Change the amount of activations */
+/* Change the number of activations */
 activation_t activation[2];
 
 /* Define buzzer pin */
