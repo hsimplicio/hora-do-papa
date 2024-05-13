@@ -1,16 +1,16 @@
-/*
- *  Project by Henrique Silva Simplicio
- */
+//
+// Project by Henrique Silva Simplicio
+// 
 
 #include <Arduino.h>
-#include "A4988.h"
-#include "uRTCLib.h"
+#include <A4988.h>
+#include <uRTCLib.h>
 
-/* =====================================
- * Global utils
- * ===================================*/
+// ===================================
+// Global utils
+// ===================================
 
-/* Create stepper motor */
+// Create stepper motor
 #define MOTOR_STEPS 200
 #define DIR 4
 #define STP 18
@@ -20,10 +20,10 @@
 
 A4988 stepper(MOTOR_STEPS, DIR, STP, MS1, MS2, MS3);
 
-/* Create RTC */
+// Create RTC
 uRTCLib rtc;
 
-/* Define useful types */
+// Define useful types
 typedef struct {
   int hour;
   int minute;
@@ -36,21 +36,21 @@ typedef struct {
   repeat_t repeat;
 } activation_t;
 
-/* Change the number of activations */
+// Change the number of activations
 activation_t activation[2];
 
-/* Define buzzer pin */
+// Define buzzer pin
 #define BUZZER 25
 
-/* =====================================
- * Functions declarations
- * ===================================*/
+// ===================================
+// Functions declarations
+// ===================================
 
 void printRTC();
 
-/* =====================================
- * Setup
- * ===================================*/
+// ===================================
+// Setup
+// ===================================
 
 void setup() {
   Serial.begin(115200);
@@ -60,11 +60,11 @@ void setup() {
 
   URTCLIB_WIRE.begin();
 
-  /* To adjust RTC initial time if needed
-     Only run it once */
+  // To adjust RTC initial time if needed
+  // Only run it once
   // rtc.set(0, 34, 17, 7, 22, 4, 23);  // (second, minute, hour, dayOfWeek, dayOfMonth, month, year)
 
-  /* Initialize times */
+  // Initialize times
   activation[0] = {
     .time {7, 0},
     .repeat {true, true, true, true, true, true, true}
@@ -76,19 +76,19 @@ void setup() {
   };
 }
 
-/* =====================================
- * Loop
- * ===================================*/
+// ===================================
+// Loop
+// ===================================
 
 void loop() {
-  /* Refresh data from RTC HW in RTC class object so flags like
-     rtc.lostPower(), rtc.getEOSCFlag(), etc, can get populated */
+  // Refresh data from RTC HW in RTC class object so flags like
+  // rtc.lostPower(), rtc.getEOSCFlag(), etc, can get populated
   rtc.refresh();
 
   printRTC();
 
   for (const activation_t &ac : activation) {
-    /* Conditions for activation */
+    // Conditions for activation
     bool dayOfWeekOK = ac.repeat[rtc.dayOfWeek()-1];
     bool hourOK = (ac.time.hour == rtc.hour());
     bool minuteOK = (ac.time.minute == rtc.minute());
@@ -106,17 +106,17 @@ void loop() {
   delay(1000);
 }
 
-/* =====================================
- * Functions definitions
- * ===================================*/
+// ===================================
+// Functions definitions
+// ===================================
 
-/**
- * Print date and time in the format
- * Data e Hora: YYYY/MM/DD (dayOfWeek) HH:MM:SS
- * to the serial monitor
- */
+//
+// Print date and time in the format
+// Data e Hora: YYYY/MM/DD (dayOfWeek) HH:MM:SS
+// to the serial monitor
+//
 void printRTC() {
-  /* Define the names of the days of the week in Portuguese */
+  // Define the names of the days of the week in Portuguese
   char daysOfWeek[7][12] = {"Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sábado"};
 
   Serial.print("Data e Hora: ");
