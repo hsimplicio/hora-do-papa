@@ -92,13 +92,13 @@ void loop() {
     bool dayOfWeekOK = ac.repeat[rtc.dayOfWeek()-1];
     bool hourOK = (ac.time.hour == rtc.hour());
     bool minuteOK = (ac.time.minute == rtc.minute());
-    bool secondOK = (rtc.second() >= 0 && rtc.second() < 5);
 
     if (dayOfWeekOK) {
-      if (hourOK && minuteOK && secondOK) {
+      if (hourOK && minuteOK) {
         Serial.print("Hora do Papá!\n");
         tone(BUZZER, 400, 1000);
         stepper.rotate(60);
+        delay(60000); // To not activate twice during the same HH:MM
       }
     }
   }
