@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+
+<head lang="pt-br">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hora do Papá!</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
+  <link rel="stylesheet" href="https://bulma.io/vendor/fontawesome-free-6.5.2-web/css/all.min.css">
+</head>
+
+<body>
+  <div class="container">
+    <section class="section">
+      <div class="container has-text-centered">
+        <h1 class="title is-1">Hora do Papá!</h1>
+      </div>  
+    </section>
+    
+    <section class="section">
+      <div class="columns">
+        
+        <div class="column is-three-fifths">
+          <div class="container has-text-centered">
+            <h3 class="title is-3">Horários Salvos</h3>
+            <div class="results"></div>
+          </div>
+        </div>
+        
+        <div class="column">
+          <div class="container has-text-centered">
+            <h3 class="title is-3">Novo Horário</h3>
+            <form class="box">
+              <div class="field">
+                <label class="label" for="time">Horário</label>
+                <div class="control">
+                  <input class="input" style="width: 30%;" type="time" name="time" id="time" required>
+                </div>
+              </div>
+              
+              <div class="field">
+                <label class="label" for="repeat">Repetir</label>
+                <div class="control">
+                  <div class="select is-multiple">
+                    <select name="repeat" id="repeat" multiple size="7" required>
+                      <option value="sun">Domingo</option>
+                      <option value="mon">Segunda</option>
+                      <option value="tue">Terça</option>
+                      <option value="wed">Quarta</option>
+                      <option value="thu">Quinta</option>
+                      <option value="fri">Sexta</option>
+                      <option value="sat">Sábado</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <button class="button is-primary" type="submit">Adicionar</button>
+            </form>
+          </div>
+        </div>
+        
+      </div>
+    </section>
+    
+    <section class="section">
+      <div class="container has-text-centered">
+        <h3 class="title is-3">Acionar Agora</h3>
+        <button class="button is-primary is-large" type="button" id="activate">
+          <span class="icon is-small">
+            <i class="fas fa-power-off"></i>
+          </span>
+        </button>
+      </div>
+    </section>
+  </div>
+  <script src="script.js"></script>
+</body>
+
+</html>
