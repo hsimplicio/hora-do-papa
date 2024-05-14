@@ -251,7 +251,7 @@ JsonDocument loadDB() {
   return db;
 }
 
-// Saves DB to the file
+// Saves DB to the file and to globalDB
 void saveDB(const JsonDocument newDB) {
   Serial.println("Saving file ...");
 
