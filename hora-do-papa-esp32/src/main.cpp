@@ -7,6 +7,7 @@
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
+#include <ESPAsyncWebServer.h>
 
 // ===================================
 // Global utils
@@ -37,6 +38,9 @@ const char* password = "YOUR_WIFI_PASSWORD";
 JsonDocument globalDB;
 SemaphoreHandle_t xSemaphore = NULL;
 
+// Create AsyncWebServer object on port 80
+AsyncWebServer server(80);
+
 // ===================================
 // Functions declarations
 // ===================================
@@ -44,6 +48,10 @@ SemaphoreHandle_t xSemaphore = NULL;
 void printRTC();
 JsonDocument loadDB();
 void saveDB(const JsonDocument newDB);
+void onNotFound(AsyncWebServerRequest *request);
+void onBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total);
+void onUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
+void startServer();
 
 // ===================================
 // Tasks
@@ -177,6 +185,8 @@ void setup() {
   xTaskCreatePinnedToCore(vKeepWiFiAlive, "Keep WiFi Alive", 5000, NULL, 1, NULL, CONFIG_ARDUINO_RUNNING_CORE);
 
   xTaskCreatePinnedToCore(vActivationSystem, "Activation System", 5000, NULL, 2, NULL, 0);
+
+  startServer();
 }
 
 // ===================================
@@ -269,4 +279,166 @@ void saveDB(const JsonDocument newDB) {
       xSemaphoreGive(xSemaphore);
     }
   }
+}
+
+void onNotFound(AsyncWebServerRequest *request) {
+  // Handle Unknown Request
+  request->send(404, "text/plain", "Not found");
+}
+
+void onBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+  // Store body data to request 
+  request->_tempObject = data;
+}
+
+void onUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+  // Handle upload
+}
+
+void startServer() {
+  // Route for root / web page
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+            {
+    Serial.println("## NEW CLIENT ##");
+    request->send(SPIFFS, "/index.html", "text/html"); });
+
+  // Specify where index.html will search the files
+  server.serveStatic("/", SPIFFS, "/");
+
+  // Handle GET requests to /activations
+  server.on("/activations", HTTP_GET, [](AsyncWebServerRequest *request)
+            {
+    Serial.println("GET /activations");
+    AsyncResponseStream *response = request->beginResponseStream("application/json");
+    response->addHeader("Server", "ESP Async Web Server");
+
+    JsonDocument db;
+
+    // Guarantee exclusive access to globalDB
+    if (xSemaphore != NULL) {
+      if (xSemaphoreTake(xSemaphore, portMAX_DELAY) == pdTRUE) {
+        // Save to the global variable
+        db = globalDB;
+        xSemaphoreGive(xSemaphore);
+      }
+    }
+
+    serializeJsonPretty(db, *response);
+
+    Serial.println("Sending:");
+    serializeJsonPretty(db, Serial);
+    Serial.println();
+
+    request->send(response); });
+
+  // Handle POST requests to /add
+  server.on("/add", HTTP_POST, [](AsyncWebServerRequest *request)
+            {
+    Serial.println("POST /add");
+    uint8_t* data = (uint8_t*) request->_tempObject;
+    
+    JsonDocument newActivation;
+    deserializeJson(newActivation, data);
+    // Avoid problem with the pointer when the request is finished
+    request->_tempObject = NULL;
+
+    Serial.println("Received:");
+    serializeJsonPretty(newActivation, Serial);
+    Serial.println();
+
+    // Section to save new DB
+    JsonDocument db;
+
+    // Guarantee exclusive access to globalDB
+    if (xSemaphore != NULL) {
+      if (xSemaphoreTake(xSemaphore, portMAX_DELAY) == pdTRUE) {
+        // Save to the global variable
+        db = globalDB;
+        xSemaphoreGive(xSemaphore);
+      }
+    }
+
+    db["activations"].add(newActivation);
+    saveDB(db);
+
+    Serial.println("Updated:");
+    serializeJsonPretty(db, Serial);
+    Serial.println();
+
+    // Building response
+    AsyncResponseStream *response = request->beginResponseStream("application/json");
+    response->addHeader("Server", "ESP Async Web Server");
+
+    JsonDocument res;
+    res["activation"] = newActivation;
+    res["status"] = "success";
+    res["message"] = "Activation added";
+    serializeJsonPretty(res, *response);
+
+    Serial.println("Sending:");
+    serializeJsonPretty(res, Serial);
+    Serial.println();
+
+    request->send(response); }, onUpload, onBody);
+
+  // Handle POST requests to /delete
+  server.on("/delete", HTTP_POST, [](AsyncWebServerRequest *request)
+            {
+    Serial.println("POST /delete");
+    uint8_t* data = (uint8_t*) request->_tempObject;
+    
+    JsonDocument activation;
+    deserializeJson(activation, data);
+    // Avoid problem with the pointer when the request is finished
+    request->_tempObject = NULL;
+
+    Serial.println("Received:");
+    serializeJsonPretty(activation, Serial);
+    Serial.println();
+
+    // Section to save new DB
+    JsonDocument db;
+
+    // Guarantee exclusive access to globalDB
+    if (xSemaphore != NULL) {
+      if (xSemaphoreTake(xSemaphore, portMAX_DELAY) == pdTRUE) {
+        // Save to the global variable
+        db = globalDB;
+        xSemaphoreGive(xSemaphore);
+      }
+    }
+
+    JsonArray existentActivations = db["activations"];
+
+    for (JsonArray::iterator it=existentActivations.begin(); it!=existentActivations.end(); ++it) {
+      if ((*it) == activation) {
+        existentActivations.remove(it);
+      }
+    }
+
+    saveDB(db);
+
+    Serial.println("Updated:");
+    serializeJsonPretty(db, Serial);
+    Serial.println();
+
+    // Building response
+    AsyncResponseStream *response = request->beginResponseStream("application/json");
+    response->addHeader("Server", "ESP Async Web Server");
+
+    JsonDocument res;
+    res["activation"] = activation;
+    res["status"] = "success";
+    res["message"] = "Activation removed";
+    serializeJsonPretty(res, *response);
+
+    Serial.println("Sending:");
+    serializeJsonPretty(res, Serial);
+    Serial.println();
+
+    request->send(response); }, onUpload, onBody);
+
+  server.onNotFound(onNotFound);
+  server.onFileUpload(onUpload);
+  server.begin();
 }
