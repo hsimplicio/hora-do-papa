@@ -35,6 +35,7 @@ const char* password = "YOUR_WIFI_PASSWORD";
 #define WIFI_TIMEOUT_MS 20000
 
 JsonDocument globalDB;
+SemaphoreHandle_t xSemaphore = NULL;
 
 // ===================================
 // Functions declarations
@@ -92,7 +93,13 @@ void vActivationSystem(void *parameters) {
   // Serial.print("Começo da ActivationSystem: ");
   // Serial.println(uxHighWaterMark);
 
-  globalDB = loadDB();
+  // Guarantee exclusive access to globalDB
+  if (xSemaphore != NULL) {
+    if (xSemaphoreTake(xSemaphore, portMAX_DELAY) == pdTRUE) {
+      globalDB = loadDB();
+      xSemaphoreGive(xSemaphore);
+    }
+  }
   
   stepper.begin(3, 1);
 
@@ -109,7 +116,15 @@ void vActivationSystem(void *parameters) {
 
     printRTC();
 
-    JsonArray activations = globalDB["activations"];
+    JsonArray activations;
+
+    // Guarantee exclusive access to globalDB
+    if (xSemaphore != NULL) {
+      if (xSemaphoreTake(xSemaphore, portMAX_DELAY) == pdTRUE) {
+        activations = globalDB["activations"];
+        xSemaphoreGive(xSemaphore);
+      }
+    }
 
     for (JsonArray::iterator it=activations.begin(); it!=activations.end(); ++it) {
       String time = (*it)["time"];
@@ -152,7 +167,11 @@ void vInitSPIFFS(void *parameters) {
 // ===================================
 
 void setup() {
+  // Serial port for debugging purposes
   Serial.begin(115200);
+
+  // Create mutex before starting tasks
+  xSemaphore = xSemaphoreCreateMutex();
 
   xTaskCreatePinnedToCore(vInitSPIFFS, "Guarantee SPIFFS Initialization", 5000, NULL, 3, NULL, CONFIG_ARDUINO_RUNNING_CORE);
   xTaskCreatePinnedToCore(vKeepWiFiAlive, "Keep WiFi Alive", 5000, NULL, 1, NULL, CONFIG_ARDUINO_RUNNING_CORE);
@@ -242,5 +261,12 @@ void saveDB(const JsonDocument newDB) {
   file.close();
   Serial.println("File saved successfully");
 
-  globalDB = doc;
+  // Guarantee exclusive access to globalDB
+  if (xSemaphore != NULL) {
+    if (xSemaphoreTake(xSemaphore, portMAX_DELAY) == pdTRUE) {
+      // Save to the global variable
+      globalDB = doc;
+      xSemaphoreGive(xSemaphore);
+    }
+  }
 }
