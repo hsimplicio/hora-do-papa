@@ -6,6 +6,7 @@
 #include <uRTCLib.h>
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
+#include <WiFi.h>
 
 // ===================================
 // Global utils
@@ -24,10 +25,16 @@ A4988 stepper(MOTOR_STEPS, DIR, STP, MS1, MS2, MS3);
 // Create RTC
 uRTCLib rtc;
 
-JsonDocument globalDB;
-
 // Define buzzer pin
 #define BUZZER 25
+
+// Replace with your network credentials
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
+
+#define WIFI_TIMEOUT_MS 20000
+
+JsonDocument globalDB;
 
 // ===================================
 // Functions declarations
@@ -37,6 +44,47 @@ void printRTC();
 void initSPIFFS();
 JsonDocument loadDB();
 void saveDB(const JsonDocument newDB);
+
+// ===================================
+// Tasks
+// ===================================
+
+void vKeepWiFiAlive(void * parameters) {
+  // Verifying stack size used
+  // UBaseType_t uxHighWaterMark;
+  // uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+  // Serial.print("Começo da KeepWiFiAlive: ");
+  // Serial.println(uxHighWaterMark);
+  for (;;) {
+    if (WiFi.status() == WL_CONNECTED) {
+      vTaskDelay(10000 / portTICK_PERIOD_MS);
+      continue;
+    }
+
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+    Serial.print("Connecting to WiFi ..");
+
+    unsigned long startAttemptTime = millis();
+
+    while (WiFi.status() != WL_CONNECTED &&
+           millis() - startAttemptTime < WIFI_TIMEOUT_MS) {
+      Serial.print(".");
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+    Serial.println();
+
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("WiFi not connected. Retrying in 10s");
+      vTaskDelay(10000 / portTICK_PERIOD_MS);
+      continue;
+    }
+    
+    Serial.println("WiFi connected");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+  }
+}
 
 // ===================================
 // Setup
@@ -58,6 +106,8 @@ void setup() {
   // To adjust RTC initial time if needed
   // Only run it once
   // rtc.set(0, 34, 17, 7, 22, 4, 23);  // (second, minute, hour, dayOfWeek, dayOfMonth, month, year)
+
+  xTaskCreatePinnedToCore(vKeepWiFiAlive, "Keep WiFi Alive", 5000, NULL, 1, NULL, CONFIG_ARDUINO_RUNNING_CORE);
 }
 
 // ===================================
@@ -100,11 +150,9 @@ void loop() {
 // Functions definitions
 // ===================================
 
-//
 // Print date and time in the format
 // Data e Hora: YYYY/MM/DD (dayOfWeek) HH:MM:SS
 // to the serial monitor
-//
 void printRTC() {
   // Define the names of the days of the week in Portuguese
   char daysOfWeek[7][12] = {"Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sábado"};
