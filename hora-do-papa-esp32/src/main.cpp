@@ -2,9 +2,10 @@
 // Project by Henrique Silva Simplicio
 // 
 
-#include <Arduino.h>
 #include <A4988.h>
 #include <uRTCLib.h>
+#include <SPIFFS.h>
+#include <ArduinoJson.h>
 
 // ===================================
 // Global utils
@@ -23,21 +24,7 @@ A4988 stepper(MOTOR_STEPS, DIR, STP, MS1, MS2, MS3);
 // Create RTC
 uRTCLib rtc;
 
-// Define useful types
-typedef struct {
-  int hour;
-  int minute;
-} time_t;
-
-typedef bool repeat_t[7];
-
-typedef struct {
-  time_t time;
-  repeat_t repeat;
-} activation_t;
-
-// Change the number of activations
-activation_t activation[2];
+JsonDocument globalDB;
 
 // Define buzzer pin
 #define BUZZER 25
@@ -47,6 +34,9 @@ activation_t activation[2];
 // ===================================
 
 void printRTC();
+void initSPIFFS();
+JsonDocument loadDB();
+void saveDB(const JsonDocument newDB);
 
 // ===================================
 // Setup
@@ -56,6 +46,11 @@ void setup() {
   Serial.begin(115200);
   delay(3); // wait for console opening
 
+  initSPIFFS();
+
+  // Initialize times
+  globalDB = loadDB();
+
   stepper.begin(3, 1);
 
   URTCLIB_WIRE.begin();
@@ -63,17 +58,6 @@ void setup() {
   // To adjust RTC initial time if needed
   // Only run it once
   // rtc.set(0, 34, 17, 7, 22, 4, 23);  // (second, minute, hour, dayOfWeek, dayOfMonth, month, year)
-
-  // Initialize times
-  activation[0] = {
-    .time {7, 0},
-    .repeat {true, true, true, true, true, true, true}
-  };
-
-  activation[1] = {
-    .time {17, 0},
-    .repeat {true, true, true, true, true, true, true}
-  };
 }
 
 // ===================================
@@ -87,19 +71,25 @@ void loop() {
 
   printRTC();
 
-  for (const activation_t &ac : activation) {
-    // Conditions for activation
-    bool dayOfWeekOK = ac.repeat[rtc.dayOfWeek()-1];
-    bool hourOK = (ac.time.hour == rtc.hour());
-    bool minuteOK = (ac.time.minute == rtc.minute());
+  JsonArray activations = globalDB["activations"];
 
-    if (dayOfWeekOK) {
-      if (hourOK && minuteOK) {
-        Serial.print("Hora do Papá!\n");
-        tone(BUZZER, 400, 1000);
-        stepper.rotate(60);
-        delay(60000); // To not activate twice during the same HH:MM
-      }
+  for (JsonArray::iterator it=activations.begin(); it!=activations.end(); ++it) {
+    String time = (*it)["time"];
+    int hour = time.substring(0, 2).toInt();
+    int minute = time.substring(3, -1).toInt();
+
+    // Conditions for activation
+    bool dayOfWeekOK = (*it)["repeat"][rtc.dayOfWeek()-1];
+    bool hourOK = (hour == rtc.hour());
+    bool minuteOK = (minute == rtc.minute());
+
+    if (dayOfWeekOK && hourOK && minuteOK) {
+      Serial.print("Hora do Papá!\n");
+      tone(BUZZER, 400, 1000);
+      stepper.rotate(60);
+      // To not activate twice during the same HH:MM
+      delay(60000);
+      break;
     }
   }
   
@@ -135,4 +125,58 @@ void printRTC() {
   Serial.print(rtc.minute());
   Serial.print(':');
   Serial.println(rtc.second());
+}
+
+void initSPIFFS() {
+  if (SPIFFS.begin(true)) {
+    Serial.println("SPIFFS mounted successfully");
+  }
+
+  Serial.println("An error has occurred while mounting SPIFFS. Retrying in 10s");
+}
+
+// Loads DB from the file to the global JsonDocument
+JsonDocument loadDB() {
+  Serial.println("Loading file ...");
+
+  // Open file for reading
+  File file = SPIFFS.open("/bd.json", "r");
+  if (!file) {
+      Serial.println("Failed to open file for reading");
+  }
+
+  JsonDocument db;
+
+  // Deserialize the JSON document
+  DeserializationError error = deserializeJson(db, file);
+  if (error) {
+    Serial.println(F("Failed to read file, using default configuration"));
+  }
+
+  file.close();
+  Serial.println("File loaded successfully");
+  return db;
+}
+
+// Saves DB to the file
+void saveDB(const JsonDocument newDB) {
+  Serial.println("Saving file ...");
+
+  // Open file for writing
+  File file = SPIFFS.open("/bd.json", "w");
+  if (!file) {
+      Serial.println("Failed to open file for writting");
+  }
+
+  JsonDocument doc = newDB;
+
+  // Serialize JSON to file
+  if (serializeJsonPretty(doc, file) == 0) {
+    Serial.println(F("Failed to write to file"));
+  }
+
+  file.close();
+  Serial.println("File saved successfully");
+
+  globalDB = doc;
 }
