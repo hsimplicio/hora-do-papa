@@ -86,19 +86,15 @@ void vKeepWiFiAlive(void * parameters) {
   }
 }
 
-// ===================================
-// Setup
-// ===================================
+void vActivationSystem(void *parameters) {
+  // Verifying stack size
+  // UBaseType_t uxHighWaterMark;
+  // uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+  // Serial.print("Começo da ActivationSystem: ");
+  // Serial.println(uxHighWaterMark);
 
-void setup() {
-  Serial.begin(115200);
-  delay(3); // wait for console opening
-
-  initSPIFFS();
-
-  // Initialize times
   globalDB = loadDB();
-
+  
   stepper.begin(3, 1);
 
   URTCLIB_WIRE.begin();
@@ -107,43 +103,59 @@ void setup() {
   // Only run it once
   // rtc.set(0, 34, 17, 7, 22, 4, 23);  // (second, minute, hour, dayOfWeek, dayOfMonth, month, year)
 
+  for (;;) {
+    // Refresh data from RTC HW in RTC class object so flags like
+    // rtc.lostPower(), rtc.getEOSCFlag(), etc, can get populated
+    rtc.refresh();
+
+    printRTC();
+
+    JsonArray activations = globalDB["activations"];
+
+    for (JsonArray::iterator it=activations.begin(); it!=activations.end(); ++it) {
+      String time = (*it)["time"];
+      int hour = time.substring(0, 2).toInt();
+      int minute = time.substring(3, -1).toInt();
+      
+      // Conditions for activation
+      bool dayOfWeekOK = (*it)["repeat"][rtc.dayOfWeek()-1];
+      bool hourOK = (hour == rtc.hour());
+      bool minuteOK = (minute == rtc.minute());
+
+      if (dayOfWeekOK && hourOK && minuteOK) {
+        Serial.println("Hora do Papá!");
+        tone(BUZZER, 400, 1000);
+        stepper.rotate(60);
+        vTaskDelay(60000 / portTICK_PERIOD_MS);
+        break;
+      }
+    }
+    
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+  }
+}
+
+// ===================================
+// Setup
+// ===================================
+
+void setup() {
+  Serial.begin(115200);
+
+  initSPIFFS();
   xTaskCreatePinnedToCore(vKeepWiFiAlive, "Keep WiFi Alive", 5000, NULL, 1, NULL, CONFIG_ARDUINO_RUNNING_CORE);
+
+  xTaskCreatePinnedToCore(vActivationSystem, "Activation System", 5000, NULL, 2, NULL, 0);
 }
 
 // ===================================
 // Loop
 // ===================================
 
+// Not used
 void loop() {
-  // Refresh data from RTC HW in RTC class object so flags like
-  // rtc.lostPower(), rtc.getEOSCFlag(), etc, can get populated
-  rtc.refresh();
-
-  printRTC();
-
-  JsonArray activations = globalDB["activations"];
-
-  for (JsonArray::iterator it=activations.begin(); it!=activations.end(); ++it) {
-    String time = (*it)["time"];
-    int hour = time.substring(0, 2).toInt();
-    int minute = time.substring(3, -1).toInt();
-
-    // Conditions for activation
-    bool dayOfWeekOK = (*it)["repeat"][rtc.dayOfWeek()-1];
-    bool hourOK = (hour == rtc.hour());
-    bool minuteOK = (minute == rtc.minute());
-
-    if (dayOfWeekOK && hourOK && minuteOK) {
-      Serial.print("Hora do Papá!\n");
-      tone(BUZZER, 400, 1000);
-      stepper.rotate(60);
-      // To not activate twice during the same HH:MM
-      delay(60000);
-      break;
-    }
-  }
-  
-  delay(1000);
+  // Minimize the loop() time consumption, without having to delete the task
+  vTaskDelay(100);
 }
 
 // ===================================
