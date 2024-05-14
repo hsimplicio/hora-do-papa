@@ -41,7 +41,6 @@ JsonDocument globalDB;
 // ===================================
 
 void printRTC();
-void initSPIFFS();
 JsonDocument loadDB();
 void saveDB(const JsonDocument newDB);
 
@@ -135,6 +134,19 @@ void vActivationSystem(void *parameters) {
   }
 }
 
+// Guarantee SPIFFS initialization
+void vInitSPIFFS(void *parameters) {
+  for (;;) {
+    if (SPIFFS.begin(true)) {
+      Serial.println("SPIFFS mounted successfully");
+      vTaskDelete(NULL);
+    }
+
+    Serial.println("An error has occurred while mounting SPIFFS. Retrying in 10s");
+    vTaskDelay(10000 / portTICK_PERIOD_MS);
+  }
+}
+
 // ===================================
 // Setup
 // ===================================
@@ -142,7 +154,7 @@ void vActivationSystem(void *parameters) {
 void setup() {
   Serial.begin(115200);
 
-  initSPIFFS();
+  xTaskCreatePinnedToCore(vInitSPIFFS, "Guarantee SPIFFS Initialization", 5000, NULL, 3, NULL, CONFIG_ARDUINO_RUNNING_CORE);
   xTaskCreatePinnedToCore(vKeepWiFiAlive, "Keep WiFi Alive", 5000, NULL, 1, NULL, CONFIG_ARDUINO_RUNNING_CORE);
 
   xTaskCreatePinnedToCore(vActivationSystem, "Activation System", 5000, NULL, 2, NULL, 0);
@@ -185,14 +197,6 @@ void printRTC() {
   Serial.print(rtc.minute());
   Serial.print(':');
   Serial.println(rtc.second());
-}
-
-void initSPIFFS() {
-  if (SPIFFS.begin(true)) {
-    Serial.println("SPIFFS mounted successfully");
-  }
-
-  Serial.println("An error has occurred while mounting SPIFFS. Retrying in 10s");
 }
 
 // Loads DB from the file to the global JsonDocument
